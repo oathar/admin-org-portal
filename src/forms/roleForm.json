@@ -10,15 +10,23 @@
           "name": "title",
           "label": "Role Title",
           "type": "text",
-          "placeHolder": "e.g., session_manager",
-          "validators": { "required": true }
+          "placeHolder": "e.g., session_manager (no spaces allowed)",
+          "validators": { "required": true, "pattern": "^[a-zA-Z0-9_]+$" },
+          "errorMessage": {
+            "required": "Role title is required",
+            "pattern": "Title must not contain spaces. Use underscores instead."
+          }
         },
         {
           "name": "label",
           "label": "Role Label",
           "type": "text",
-          "placeHolder": "e.g., Session Manager",
-          "validators": { "required": true }
+          "placeHolder": "e.g., Session Manager (first letter must be capital)",
+          "validators": { "required": true, "pattern": "^[A-Z][a-zA-Z0-9 ]*$" },
+          "errorMessage": {
+            "required": "Role label is required",
+            "pattern": "Label must start with a capital letter"
+          }
         },
         {
           "name": "user_type",

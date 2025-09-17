@@ -21,11 +21,22 @@ import { useToast } from '@/hooks/use-toast'
 import RoleCreateModal from './RoleCreateModal'
 
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
-  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1)
+  const safeTotalPages = Math.max(totalPages || 0, 1)
+  
+  // Don't render pagination if no pages
+  if (totalPages <= 0) {
+    return null
+  }
+  
+  const pageNumbers = Array.from({ length: safeTotalPages }, (_, i) => i + 1)
 
   return (
     <div className="flex justify-center items-center space-x-2 mt-4">
-      <Button variant="outline" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1}>
+      <Button
+        variant="outline"
+        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+        disabled={currentPage <= 1}
+      >
         Previous
       </Button>
       {pageNumbers.map(number => (
@@ -36,7 +47,11 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
           {number}
         </Button>
       ))}
-      <Button variant="outline" onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages}>
+      <Button
+        variant="outline"
+        onClick={() => onPageChange(Math.min(safeTotalPages, currentPage + 1))}
+        disabled={currentPage >= safeTotalPages}
+      >
         Next
       </Button>
     </div>
@@ -58,7 +73,7 @@ const RoleManagementPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [roleToDelete, setRoleToDelete] = useState(null)
   const [deleting, setDeleting] = useState(false)
-  const { toast } = useToast ? useToast() : { toast: () => {} }
+  const { toast } = useToast()
 
   const fetchRoles = async () => {
     setLoading(true)
@@ -154,7 +169,7 @@ const RoleManagementPage = () => {
     try {
       await deleteRole(roleToDelete.id)
       
-      toast && toast({
+      toast({
         title: 'Role deleted',
         description: `Role "${roleToDelete.title}" has been deleted successfully`,
         variant: 'success',
@@ -168,7 +183,7 @@ const RoleManagementPage = () => {
       console.error('❌ Failed to delete role:', error)
       const errorMessage = error?.response?.data?.message || error.message || 'Failed to delete role'
       
-      toast && toast({
+      toast({
         title: 'Failed to delete role',
         description: errorMessage,
         variant: 'destructive',

@@ -32,7 +32,7 @@ const RoleCreateModal = ({
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const { toast } = useToast ? useToast() : { toast: () => {} }
+  const { toast } = useToast()
 
   const flattenFields = (fields) => {
     return fields.flatMap((field) =>
@@ -133,24 +133,73 @@ const RoleCreateModal = ({
         }]
       }
 
+      // Validate required fields before sending
+      if (!formData.title || !formData.label) {
+        throw new Error('Title and Label are required fields')
+      }
+      
+      if (!organizationId || isNaN(parseInt(organizationId, 10))) {
+        throw new Error('Valid organization ID is required')
+      }
+
+      // Build clean payload with server validation rules
       let payload = {
-        title: formData.title,
-        label: formData.label,
-        user_type: parseInt(formData.user_type) || 0,
+        title: formData.title?.trim().replace(/\s+/g, '_'), // Replace spaces with underscores
+        label: formData.label?.trim().charAt(0).toUpperCase() + formData.label?.trim().slice(1), // Capitalize first letter
         status: formData.status || 'ACTIVE',
         visibility: formData.visibility || 'PUBLIC',
-        organization_id: parseInt(organizationId),
-        tenant_code: formData.tenant_code || 'default'
+        organization_id: Number.isFinite(Number(organizationId))
+          ? parseInt(organizationId, 10)
+          : undefined
       }
 
-      // Add translations if any exist
+      // Handle user_type - include even when it's 0
+      // The form might return either a number or an object {value: number, label: string}
+      if (formData.user_type !== undefined && formData.user_type !== null && formData.user_type !== '') {
+        let userTypeValue
+        
+        // Check if it's an object with a value property (select dropdown format)
+        if (typeof formData.user_type === 'object' && formData.user_type.value !== undefined) {
+          userTypeValue = formData.user_type.value
+        } else {
+          // It's already a primitive value
+          userTypeValue = formData.user_type
+        }
+        
+        const userTypeNum = parseInt(userTypeValue, 10)
+        if (!isNaN(userTypeNum)) {
+          payload.user_type = userTypeNum
+        }
+      }
+
+      // Add tenant_code only if it has a value and it's not 'default'
+      if (formData.tenant_code && formData.tenant_code.trim() && formData.tenant_code !== 'default') {
+        payload.tenant_code = formData.tenant_code.trim()
+      }
+
+      // Add translations only if they have actual content
       if (Object.keys(translations).length > 0) {
-        payload.translations = translations
+        // Verify translations have actual values
+        const validTranslations = {}
+        Object.keys(translations).forEach(lang => {
+          if (translations[lang] && translations[lang].title && translations[lang].title.trim()) {
+            validTranslations[lang] = translations[lang]
+          }
+        })
+        if (Object.keys(validTranslations).length > 0) {
+          payload.translations = validTranslations
+        }
       }
 
-      // Add meta if entityTypes exist
-      if (Object.keys(meta).length > 0) {
-        payload.meta = meta
+      // Add meta only if entityTypes have actual values
+      if (formData.entityTypeId && formData.entityTypeId.trim() && 
+          formData.entityType && formData.entityType.trim()) {
+        payload.meta = {
+          entityTypes: [{
+            entityTypeId: formData.entityTypeId.trim(),
+            entityType: formData.entityType.trim()
+          }]
+        }
       }
 
       // For edit mode, include the ID
@@ -169,7 +218,7 @@ const RoleCreateModal = ({
       
       const roleData = response?.result || response
       
-      toast && toast({
+      toast({
         title: `Role ${mode === 'edit' ? 'updated' : 'created'}`,
         description: `Role ${mode === 'edit' ? 'updated' : 'created'} successfully`,
         variant: 'success',
@@ -179,10 +228,14 @@ const RoleCreateModal = ({
       setOpen(false)
     } catch (error) {
       console.error(`❌ Failed to ${mode} role:`, error)
-      const errorMessage = error?.response?.data?.message || error.message || `Failed to ${mode} role`
+      
+      const errorMessage = error?.response?.data?.message || 
+                          error?.response?.data?.error || 
+                          error.message || 
+                          `Failed to ${mode} role`
       setSubmitError(errorMessage)
       
-      toast && toast({
+      toast({
         title: `Failed to ${mode} role`,
         description: errorMessage,
         variant: 'destructive',
